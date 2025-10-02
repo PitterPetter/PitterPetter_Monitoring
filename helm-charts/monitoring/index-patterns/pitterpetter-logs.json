@@ -1,0 +1,15 @@
+{
+  "version": "8.0.0",
+  "objects": [
+    {
+      "id": "pitterpetter-logs-pattern",
+      "type": "index-pattern",
+      "version": "WzEsMV0=",
+      "attributes": {
+        "title": "pitterpetter-logs-*",
+        "timeFieldName": "@timestamp",
+        "fields": "[]"
+      }
+    }
+  ]
+}
