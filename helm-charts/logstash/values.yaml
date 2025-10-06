@@ -1,0 +1,181 @@
+# Logstash Helm Chart Values for PitterPetter
+# https://github.com/elastic/helm-charts/tree/main/logstash
+
+# Elasticsearch 연결 설정
+elasticsearchHosts: "http://elasticsearch-master:9200"
+
+# 리소스 설정
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# 복제본 수
+replicas: 1
+
+# Logstash 설정
+logstashConfig:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    xpack.monitoring.enabled: true
+    xpack.monitoring.elasticsearch.hosts: ["http://elasticsearch-master:9200"]
+    pipeline.workers: 2
+    pipeline.batch.size: 1000
+    pipeline.batch.delay: 50
+    config.reload.automatic: true
+    config.reload.interval: 3s
+    log.level: info
+    path.data: /usr/share/logstash/data
+    path.logs: /usr/share/logstash/logs
+
+# Pipeline 설정
+logstashPipeline:
+  logstash.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+    }
+    
+    filter {
+      # Spring Boot 애플리케이션 로그 파싱
+      if [fields][service] == "auth-service" or [fields][service] == "content-service" or [fields][service] == "course-service" {
+        grok {
+          match => { "message" => "%{TIMESTAMP_ISO8601:timestamp} %{LOGLEVEL:level} %{NUMBER:pid} --- \[%{DATA:thread}\] %{DATA:logger} : %{GREEDYDATA:log_message}" }
+        }
+        
+        date {
+          match => [ "timestamp", "ISO8601" ]
+        }
+        
+        mutate {
+          add_field => { "service_type" => "spring-boot" }
+        }
+      }
+      
+      # AI Service (FastAPI) 로그 파싱
+      if [fields][service] == "ai-service" {
+        grok {
+          match => { "message" => "%{TIMESTAMP_ISO8601:timestamp} %{LOGLEVEL:level} %{GREEDYDATA:log_message}" }
+        }
+        
+        date {
+          match => [ "timestamp", "ISO8601" ]
+        }
+        
+        mutate {
+          add_field => { "service_type" => "fastapi" }
+        }
+      }
+      
+      # PostgreSQL 로그 파싱
+      if [fields][service] == "postgresql" {
+        grok {
+          match => { "message" => "%{TIMESTAMP_ISO8601:timestamp} \[%{NUMBER:pid}\] %{LOGLEVEL:level}: %{GREEDYDATA:log_message}" }
+        }
+        
+        date {
+          match => [ "timestamp", "ISO8601" ]
+        }
+        
+        mutate {
+          add_field => { "service_type" => "postgresql" }
+        }
+      }
+      
+      # Kubernetes 이벤트 로그
+      if [fields][service] == "kubernetes-events" {
+        mutate {
+          add_field => { "service_type" => "kubernetes" }
+        }
+      }
+      
+      # 공통 필드 정리
+      mutate {
+        remove_field => [ "timestamp" ]
+        add_field => { "cluster" => "pitterpetter-dev-cluster" }
+        add_field => { "environment" => "development" }
+      }
+    }
+    
+    output {
+      elasticsearch {
+        hosts => ["http://elasticsearch-master:9200"]
+        index => "pitterpetter-logs-%{+YYYY.MM.dd}"
+        template_name => "pitterpetter-logs"
+        template_pattern => "pitterpetter-logs-*"
+        template => {
+          "index_patterns" => ["pitterpetter-logs-*"]
+          "settings" => {
+            "number_of_shards" => 1
+            "number_of_replicas" => 0
+            "index.refresh_interval" => "5s"
+          }
+          "mappings" => {
+            "properties" => {
+              "@timestamp" => { "type" => "date" }
+              "level" => { "type" => "keyword" }
+              "service" => { "type" => "keyword" }
+              "service_type" => { "type" => "keyword" }
+              "log_message" => { "type" => "text" }
+              "thread" => { "type" => "keyword" }
+              "logger" => { "type" => "keyword" }
+              "cluster" => { "type" => "keyword" }
+              "environment" => { "type" => "keyword" }
+            }
+          }
+        }
+      }
+    }
+
+# 서비스 설정
+service:
+  type: ClusterIP
+  ports:
+    beats: 5044
+    http: 9600
+
+# 헬스체크 설정
+readinessProbe:
+  httpGet:
+    path: /_node/stats
+    port: 9600
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /_node/stats
+    port: 9600
+  initialDelaySeconds: 60
+  periodSeconds: 10
+
+# Pod 안전성 설정
+podSecurityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# 노드 선택자
+nodeSelector: {}
+
+# 톨러레이션
+tolerations: []
+
+# 어피니티
+affinity: {}
+
+# 환경 변수
+extraEnvs:
+  - name: "LS_JAVA_OPTS"
+    value: "-Xms512m -Xmx1g"
