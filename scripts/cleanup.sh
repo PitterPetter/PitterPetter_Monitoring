@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 설정
-NAMESPACE="elk-stack"
+NAMESPACE="loventure-app"
 FORCE=false
 
 # 로그 함수

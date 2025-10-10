@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 
 # 환경 설정
 ENVIRONMENT=${1:-dev}
-NAMESPACE="elk-stack"
+NAMESPACE="loventure-app"
 CHART_VERSION="8.0.0"
 
 # 로그 함수
@@ -71,15 +71,15 @@ add_helm_repos() {
     log_success "Helm repository 추가 완료"
 }
 
-# 네임스페이스 생성
-create_namespace() {
-    log_info "네임스페이스 생성 중..."
+# 네임스페이스 확인
+check_namespace() {
+    log_info "네임스페이스 확인 중..."
     
     if kubectl get namespace $NAMESPACE &> /dev/null; then
-        log_warning "네임스페이스 $NAMESPACE가 이미 존재합니다."
+        log_success "네임스페이스 $NAMESPACE가 존재합니다."
     else
-        kubectl create namespace $NAMESPACE
-        log_success "네임스페이스 $NAMESPACE 생성 완료"
+        log_error "네임스페이스 $NAMESPACE가 존재하지 않습니다. 먼저 애플리케이션을 배포해주세요."
+        exit 1
     fi
 }
 
@@ -188,7 +188,7 @@ main() {
     
     check_prerequisites
     add_helm_repos
-    create_namespace
+    check_namespace
     
     # 순차 배포 (의존성 고려)
     deploy_elasticsearch

@@ -2,7 +2,7 @@
 # https://github.com/elastic/helm-charts/tree/main/elasticsearch
 
 # Elasticsearch 설정
-clusterName: "pitterpetter-elk"
+clusterName: "loventure-elk"
 nodeGroup: "master"
 
 # 리소스 설정
@@ -33,7 +33,7 @@ extraEnvs:
 # 보안 설정 (개발 환경용)
 esConfig:
   elasticsearch.yml: |
-    cluster.name: pitterpetter-elk
+    cluster.name: loventure-elk
     node.name: ${HOSTNAME}
     network.host: 0.0.0.0
     discovery.seed_hosts: elasticsearch-master-headless
@@ -41,7 +41,7 @@ esConfig:
     xpack.security.enabled: false
     xpack.monitoring.collection.enabled: true
     http.cors.enabled: true
-    http.cors.allow-origin: "*"
+    http.cors.allow-origin: "https://loventure.us, https://api.loventure.us, https://kibana.loventure.us"
     http.cors.allow-headers: "X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization"
     http.cors.allow-credentials: true
     path.data: /usr/share/elasticsearch/data
