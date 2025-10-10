@@ -1,0 +1,199 @@
+# Kibana Helm Chart Values for PitterPetter
+# https://github.com/elastic/helm-charts/tree/main/kibana
+
+# Elasticsearch 연결 설정
+elasticsearchHosts: "http://elasticsearch-master:9200"
+
+# 리소스 설정
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# 복제본 수
+replicas: 1
+
+# Kibana 설정
+kibanaConfig:
+  kibana.yml: |
+    server.name: kibana
+    server.host: "0.0.0.0"
+    server.port: 5601
+    elasticsearch.hosts: ["http://elasticsearch-master:9200"]
+    elasticsearch.requestTimeout: 30000
+    elasticsearch.shardTimeout: 30000
+    elasticsearch.pingTimeout: 30000
+    server.maxPayloadBytes: 1048576
+    server.compression.enabled: true
+    server.compression.referrerWhitelist: ["kibana.loventure.us", "api.loventure.us"]
+    elasticsearch.logQueries: false
+    logging.appenders.console.type: console
+    logging.appenders.console.layout.type: pattern
+    logging.appenders.console.layout.pattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"
+    logging.appenders.file.type: file
+    logging.appenders.file.fileName: /usr/share/kibana/logs/kibana.log
+    logging.appenders.file.layout.type: pattern
+    logging.appenders.file.layout.pattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"
+    logging.root.appenders: ["console", "file"]
+    logging.root.level: info
+    xpack.security.enabled: false
+    xpack.encryptedSavedObjects.encryptionKey: "pitterpetter-kibana-encryption-key-32-chars"
+    xpack.reporting.enabled: true
+    xpack.reporting.kibanaServer.hostname: "kibana.loventure.us"
+    xpack.reporting.kibanaServer.port: 443
+    xpack.reporting.kibanaServer.protocol: "https"
+    xpack.reporting.capture.browser.chromium.disableSandbox: true
+    xpack.security.encryptionKey: "pitterpetter-kibana-security-key-32-chars"
+    xpack.encryptedSavedObjects.encryptionKey: "pitterpetter-kibana-encryption-key-32-chars"
+
+# 서비스 설정
+service:
+  type: ClusterIP
+  ports:
+    http: 5601
+
+# Ingress 설정
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://loventure.us, https://api.loventure.us"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: kibana.loventure.us
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: kibana-tls
+      hosts:
+        - kibana.loventure.us
+
+# 헬스체크 설정
+readinessProbe:
+  httpGet:
+    path: /api/status
+    port: 5601
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /api/status
+    port: 5601
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Pod 안전성 설정
+podSecurityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# 노드 선택자 (GKE 최적화)
+nodeSelector:
+  cloud.google.com/gke-nodepool: default-pool
+
+# 톨러레이션
+tolerations: []
+
+# 어피니티
+affinity: {}
+
+# 환경 변수
+extraEnvs:
+  - name: "NODE_OPTIONS"
+    value: "--max-old-space-size=1024"
+
+# 초기 설정 (Index Pattern, Dashboard 등)
+extraVolumes:
+  - name: kibana-init
+    configMap:
+      name: kibana-init-config
+
+extraVolumeMounts:
+  - name: kibana-init
+    mountPath: /usr/share/kibana/config/kibana-init
+    readOnly: true
+
+# ConfigMap 생성
+configMaps:
+  kibana-init-config: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: kibana-init-config
+      namespace: loventure-app
+      labels:
+        app: kibana
+        component: monitoring
+    data:
+      # Index Pattern 설정
+      index-patterns.json: |
+        {
+          "version": "8.0.0",
+          "objects": [
+            {
+              "id": "loventure-logs-*",
+              "type": "index-pattern",
+              "attributes": {
+                "title": "loventure-logs-*",
+                "timeFieldName": "@timestamp",
+                "fields": "{\"@timestamp\":{\"count\":0,\"name\":\"@timestamp\",\"type\":\"date\",\"esTypes\":[\"date\"],\"scripted\":false,\"searchable\":true,\"aggregatable\":true,\"readFromDocValues\":true},\"level\":{\"count\":0,\"name\":\"level\",\"type\":\"string\",\"esTypes\":[\"keyword\"],\"scripted\":false,\"searchable\":true,\"aggregatable\":true,\"readFromDocValues\":true},\"service\":{\"count\":0,\"name\":\"service\",\"type\":\"string\",\"esTypes\":[\"keyword\"],\"scripted\":false,\"searchable\":true,\"aggregatable\":true,\"readFromDocValues\":true}}"
+              }
+            }
+          ]
+        }
+
+# 자동 스케일링 (HPA)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# 네트워크 정책
+networkPolicy:
+  enabled: false
+
+# 서비스 모니터 (Prometheus)
+serviceMonitor:
+  enabled: true
+  labels:
+    app: kibana
+    release: prometheus
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /api/status
+  port: http

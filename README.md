@@ -1,10 +1,10 @@
-# PitterPetter ELK Stack Monitoring
+# LoveVenture ELK Stack Monitoring
 
-PitterPetter 프로젝트의 로그 모니터링을 위한 ELK Stack 배포 가이드
+LoveVenture 프로젝트의 로그 모니터링을 위한 ELK Stack 배포 가이드
 
 ## 📋 개요
 
-이 프로젝트는 PitterPetter 애플리케이션의 로그를 수집, 저장, 분석하기 위한 ELK Stack을 Helm을 사용하여 GKE에 배포합니다.
+이 프로젝트는 LoveVenture 애플리케이션의 로그를 수집, 저장, 분석하기 위한 ELK Stack을 Helm을 사용하여 GKE에 배포합니다.
 
 ## 🏗️ 아키텍처
 
@@ -39,32 +39,33 @@ helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo update
 ```
 
-### 3. 네임스페이스 생성
+### 3. 네임스페이스 확인
 
 ```bash
-kubectl create namespace elk-stack
+# loventure-app 네임스페이스가 이미 존재하는지 확인
+kubectl get namespace loventure-app
 ```
 
 ### 4. ELK Stack 배포
 
 ```bash
 # Elasticsearch 배포
-helm install elasticsearch elastic/elasticsearch -n elk-stack -f helm-charts/elasticsearch/values.yaml
+helm install elasticsearch elastic/elasticsearch -n loventure-app -f helm-charts/elasticsearch/values.yaml
 
 # Kibana 배포
-helm install kibana elastic/kibana -n elk-stack -f helm-charts/kibana/values.yaml
+helm install kibana elastic/kibana -n loventure-app -f helm-charts/kibana/values.yaml
 
 # Logstash 배포
-helm install logstash elastic/logstash -n elk-stack -f helm-charts/logstash/values.yaml
+helm install logstash elastic/logstash -n loventure-app -f helm-charts/logstash/values.yaml
 
 # Filebeat 배포
-helm install filebeat elastic/filebeat -n elk-stack -f helm-charts/filebeat/values.yaml
+helm install filebeat elastic/filebeat -n loventure-app -f helm-charts/filebeat/values.yaml
 ```
 
 ## 📁 프로젝트 구조
 
 ```
-PitterPetter_Monitoring/
+LoveVenture_Monitoring/
 ├── README.md
 ├── helm-charts/
 │   ├── elasticsearch/
@@ -92,21 +93,21 @@ PitterPetter_Monitoring/
 ## 📊 모니터링
 
 - **Kibana URL**: `https://kibana.loventure.us`
-- **Elasticsearch URL**: `http://elasticsearch.elk-stack.svc.cluster.local:9200`
+- **Elasticsearch URL**: `http://elasticsearch-master.loventure-app.svc.cluster.local:9200`
 
 ## 🛠️ 유지보수
 
 ### 업그레이드
 ```bash
-helm upgrade elasticsearch elastic/elasticsearch -n elk-stack -f helm-charts/elasticsearch/values.yaml
+helm upgrade elasticsearch elastic/elasticsearch -n loventure-app -f helm-charts/elasticsearch/values.yaml
 ```
 
 ### 삭제
 ```bash
-helm uninstall filebeat -n elk-stack
-helm uninstall logstash -n elk-stack
-helm uninstall kibana -n elk-stack
-helm uninstall elasticsearch -n elk-stack
+helm uninstall filebeat -n loventure-app
+helm uninstall logstash -n loventure-app
+helm uninstall kibana -n loventure-app
+helm uninstall elasticsearch -n loventure-app
 ```
 
 ## 📚 추가 문서

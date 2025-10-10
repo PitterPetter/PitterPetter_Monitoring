@@ -96,7 +96,7 @@ logstashPipeline:
       # 공통 필드 정리
       mutate {
         remove_field => [ "timestamp" ]
-        add_field => { "cluster" => "pitterpetter-dev-cluster" }
+        add_field => { "cluster" => "loventure-dev-cluster" }
         add_field => { "environment" => "development" }
       }
     }
@@ -104,11 +104,11 @@ logstashPipeline:
     output {
       elasticsearch {
         hosts => ["http://elasticsearch-master:9200"]
-        index => "pitterpetter-logs-%{+YYYY.MM.dd}"
-        template_name => "pitterpetter-logs"
-        template_pattern => "pitterpetter-logs-*"
+        index => "loventure-logs-%{+YYYY.MM.dd}"
+        template_name => "loventure-logs"
+        template_pattern => "loventure-logs-*"
         template => {
-          "index_patterns" => ["pitterpetter-logs-*"]
+          "index_patterns" => ["loventure-logs-*"]
           "settings" => {
             "number_of_shards" => 1
             "number_of_replicas" => 0
