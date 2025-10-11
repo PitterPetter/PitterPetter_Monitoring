@@ -2,7 +2,7 @@
 # https://github.com/elastic/helm-charts/tree/main/logstash
 
 # Elasticsearch 연결 설정
-elasticsearchHosts: "http://elasticsearch-master:9200"
+elasticsearchHosts: "https://loventure-elk-master:9200"
 
 # 리소스 설정
 resources:
@@ -21,7 +21,7 @@ logstashConfig:
   logstash.yml: |
     http.host: "0.0.0.0"
     xpack.monitoring.enabled: true
-    xpack.monitoring.elasticsearch.hosts: ["http://elasticsearch-master:9200"]
+    xpack.monitoring.elasticsearch.hosts: ["https://loventure-elk-master:9200"]
     pipeline.workers: 2
     pipeline.batch.size: 1000
     pipeline.batch.delay: 50
@@ -103,31 +103,15 @@ logstashPipeline:
     
     output {
       elasticsearch {
-        hosts => ["http://elasticsearch-master:9200"]
+        hosts => ["https://loventure-elk-master:9200"]
         index => "loventure-logs-%{+YYYY.MM.dd}"
+        ssl => true
+        ssl_certificate_verification => false
+        user => "elastic"
+        password => "zmEeCTFBZLiZb9lI"
         template_name => "loventure-logs"
-        template_pattern => "loventure-logs-*"
-        template => {
-          "index_patterns" => ["loventure-logs-*"]
-          "settings" => {
-            "number_of_shards" => 1
-            "number_of_replicas" => 0
-            "index.refresh_interval" => "5s"
-          }
-          "mappings" => {
-            "properties" => {
-              "@timestamp" => { "type" => "date" }
-              "level" => { "type" => "keyword" }
-              "service" => { "type" => "keyword" }
-              "service_type" => { "type" => "keyword" }
-              "log_message" => { "type" => "text" }
-              "thread" => { "type" => "keyword" }
-              "logger" => { "type" => "keyword" }
-              "cluster" => { "type" => "keyword" }
-              "environment" => { "type" => "keyword" }
-            }
-          }
-        }
+        template_overwrite => true
+        template => "/usr/share/logstash/templates/loventure-logs-template.json"
       }
     }
 
@@ -135,8 +119,14 @@ logstashPipeline:
 service:
   type: ClusterIP
   ports:
-    beats: 5044
-    http: 9600
+    - name: beats
+      port: 5044
+      targetPort: 5044
+      protocol: TCP
+    - name: http
+      port: 9600
+      targetPort: 9600
+      protocol: TCP
 
 # 헬스체크 설정
 readinessProbe:
@@ -175,7 +165,45 @@ tolerations: []
 # 어피니티
 affinity: {}
 
+# 볼륨 설정
+extraVolumes:
+  - name: templates
+    configMap:
+      name: logstash-templates
+
+extraVolumeMounts:
+  - name: templates
+    mountPath: /usr/share/logstash/templates
+    readOnly: true
+
 # 환경 변수
 extraEnvs:
   - name: "LS_JAVA_OPTS"
     value: "-Xms512m -Xmx1g"
+
+# 템플릿 ConfigMap
+extraConfigMaps:
+  - name: logstash-templates
+    data:
+      loventure-logs-template.json: |
+        {
+          "index_patterns": ["loventure-logs-*"],
+          "settings": {
+            "index.refresh_interval": "5s",
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "cluster": {"type": "keyword"},
+              "service_type": {"type": "keyword"},
+              "environment": {"type": "keyword"},
+              "@timestamp": {"type": "date"},
+              "level": {"type": "keyword"},
+              "service": {"type": "keyword"},
+              "logger": {"type": "keyword"},
+              "log_message": {"type": "text"},
+              "thread": {"type": "keyword"}
+            }
+          }
+        }

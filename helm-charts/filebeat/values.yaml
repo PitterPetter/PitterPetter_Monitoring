@@ -1,24 +1,23 @@
 # Filebeat Helm Chart Values for PitterPetter
-# https://github.com/elastic/helm-charts/tree/main/filebeat
+# Logstash와 Kibana와 동일한 SSL 인증서 사용
 
-# DaemonSet으로 실행 (모든 노드에서 로그 수집)
+# Filebeat 보안 설정
 daemonSet:
   enabled: true
 
 # 리소스 설정
 resources:
   requests:
-    cpu: "100m"
-    memory: "128Mi"
+    cpu: "50m"
+    memory: "100Mi"
   limits:
-    cpu: "200m"
-    memory: "256Mi"
+    cpu: "100m"
+    memory: "200Mi"
 
 # Filebeat 설정
 filebeatConfig:
   filebeat.yml: |
     filebeat.inputs:
-    # Spring Boot 애플리케이션 로그 수집
     - type: container
       enabled: true
       paths:
@@ -29,152 +28,25 @@ filebeatConfig:
             matchers:
             - logs_path:
                 logs_path: "/var/log/containers/"
-        - add_fields:
-            fields:
-              service: "auth-service"
-            when:
-              contains:
-                kubernetes.container.name: "auth-service"
-        - add_fields:
-            fields:
-              service: "content-service"
-            when:
-              contains:
-                kubernetes.container.name: "content-service"
-        - add_fields:
-            fields:
-              service: "course-service"
-            when:
-              contains:
-                kubernetes.container.name: "course-service"
-        - add_fields:
-            fields:
-              service: "ai-service"
-            when:
-              contains:
-                kubernetes.container.name: "ai-service"
-        - add_fields:
-            fields:
-              service: "gateway"
-            when:
-              contains:
-                kubernetes.container.name: "gateway"
-        - add_fields:
-            fields:
-              service: "postgresql"
-            when:
-              contains:
-                kubernetes.container.name: "postgres"
+            include_annotations: true
+            include_labels: true
         - add_fields:
             fields:
               cluster: "loventure-dev-cluster"
               environment: "development"
               namespace: "loventure-app"
 
-    # Kubernetes 이벤트 수집
-    - type: container
-      enabled: true
-      paths:
-        - /var/log/containers/*_loventure-app_*.log
-      processors:
-        - add_kubernetes_metadata:
-            host: ${NODE_NAME}
-            matchers:
-            - logs_path:
-                logs_path: "/var/log/containers/"
-        - add_fields:
-            fields:
-              service: "kubernetes-events"
-              cluster: "loventure-dev-cluster"
-              environment: "development"
-              namespace: "loventure-app"
-
-    # 시스템 로그 수집 (선택사항)
-    - type: log
-      enabled: false
-      paths:
-        - /var/log/syslog
-        - /var/log/auth.log
-      processors:
-        - add_fields:
-            fields:
-              service: "system-logs"
-              cluster: "loventure-dev-cluster"
-              environment: "development"
-
-    # 출력 설정 (Logstash로 전송)
     output.logstash:
       hosts: ["logstash-logstash:5044"]
-      compression_level: 3
-      bulk_max_size: 1024
-      timeout: 30s
+      ssl.enabled: false  # Logstash와 동일하게 SSL 비활성화
 
-    # 로깅 설정
     logging.level: info
-    logging.to_files: true
-    logging.files:
-      path: /usr/share/filebeat/logs
-      name: filebeat
-      keepfiles: 7
-      permissions: 0644
 
-    # 모니터링 설정
-    monitoring.enabled: true
-    monitoring.elasticsearch:
-      hosts: ["elasticsearch-master:9200"]
+# 노드 선택자
+nodeSelector:
+  cloud.google.com/gke-nodepool: pitterpetter-nodes
 
-    # 프로세서 설정
-    processors:
-      - add_host_metadata:
-          when.not.contains.tags: forwarded
-      - add_cloud_metadata: ~
-      - add_docker_metadata: ~
-      - add_kubernetes_metadata: ~
-
-    # 설정 모듈
-    setup.kibana:
-      host: "kibana-kibana:5601"
-
-    # 템플릿 설정
-    setup.template.settings:
-      index.number_of_shards: 1
-      index.number_of_replicas: 0
-      index.refresh_interval: 5s
-
-    # 대시보드 설정
-    setup.dashboards.enabled: true
-    setup.dashboards.directory: /usr/share/filebeat/kibana/
-
-# 서비스 설정
-service:
-  type: ClusterIP
-  ports:
-    beats: 5044
-
-# 헬스체크 설정
-readinessProbe:
-  exec:
-    command:
-      - /usr/bin/filebeat
-      - test
-      - config
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
-
-livenessProbe:
-  exec:
-    command:
-      - /usr/bin/filebeat
-      - test
-      - output
-  initialDelaySeconds: 30
-  periodSeconds: 30
-  timeoutSeconds: 5
-  failureThreshold: 3
-
-# Pod 안전성 설정
+# Pod 안전성 설정 (Filebeat는 root 권한 필요)
 podSecurityContext:
   fsGroup: 0
   runAsUser: 0
@@ -183,23 +55,23 @@ securityContext:
   capabilities:
     drop:
     - ALL
+    add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    - FSETID
+    - KILL
+    - SETGID
+    - SETUID
+    - SETPCAP
+    - NET_BIND_SERVICE
+    - NET_RAW
+    - SYS_CHROOT
+    - SYS_PTRACE
+    - SYS_RESOURCE
+    - IPC_LOCK
   readOnlyRootFilesystem: false
   runAsNonRoot: false
-  runAsUser: 0
-
-# 노드 선택자 (GKE 최적화)
-nodeSelector:
-  cloud.google.com/gke-nodepool: default-pool
-
-# 톨러레이션
-tolerations:
-  - effect: NoSchedule
-    operator: Exists
-  - effect: NoExecute
-    operator: Exists
-
-# 어피니티
-affinity: {}
 
 # 환경 변수
 extraEnvs:
@@ -207,27 +79,11 @@ extraEnvs:
     valueFrom:
       fieldRef:
         fieldPath: spec.nodeName
-  - name: NAMESPACE
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.namespace
 
 # 볼륨 마운트
 extraVolumeMounts:
   - name: varlogcontainers
     mountPath: /var/log/containers
-    readOnly: true
-  - name: varlogpods
-    mountPath: /var/log/pods
-    readOnly: true
-  - name: varlibdockercontainers
-    mountPath: /var/lib/docker/containers
-    readOnly: true
-  - name: varlogsyslog
-    mountPath: /var/log/syslog
-    readOnly: true
-  - name: varlogauthlog
-    mountPath: /var/log/auth.log
     readOnly: true
 
 # 볼륨
@@ -235,73 +91,9 @@ extraVolumes:
   - name: varlogcontainers
     hostPath:
       path: /var/log/containers
-  - name: varlogpods
-    hostPath:
-      path: /var/log/pods
-  - name: varlibdockercontainers
-    hostPath:
-      path: /var/lib/docker/containers
-  - name: varlogsyslog
-    hostPath:
-      path: /var/log/syslog
-  - name: varlogauthlog
-    hostPath:
-      path: /var/log/auth.log
 
 # RBAC 설정
 rbac:
   create: true
-  rules:
-    - apiGroups: [""]
-      resources: ["nodes", "namespaces", "pods", "services"]
-      verbs: ["get", "list", "watch"]
-    - apiGroups: ["apps"]
-      resources: ["replicasets", "deployments", "daemonsets"]
-      verbs: ["get", "list", "watch"]
-    - apiGroups: ["extensions"]
-      resources: ["replicasets", "deployments", "daemonsets"]
-      verbs: ["get", "list", "watch"]
 
-# ServiceAccount 설정
-serviceAccount:
-  create: true
-  name: filebeat
-  annotations: {}
-
-# Pod Disruption Budget
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
-
-# 네트워크 정책
-networkPolicy:
-  enabled: false
-
-# 서비스 모니터 (Prometheus)
-serviceMonitor:
-  enabled: true
-  labels:
-    app: filebeat
-    release: prometheus
-  interval: 30s
-  scrapeTimeout: 10s
-  path: /stats
-  port: http
-
-# 업그레이드 전략
-updateStrategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxUnavailable: 1
-    maxSurge: 1
-
-# 라벨 및 어노테이션
-labels:
-  app: filebeat
-  component: log-collector
-  part-of: pitterpetter-monitoring
-
-annotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "5066"
-  prometheus.io/path: "/stats"
+# Secret Mount (SSL 비활성화로 인해 제거됨)
