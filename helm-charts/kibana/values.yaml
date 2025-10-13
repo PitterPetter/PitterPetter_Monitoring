@@ -1,5 +1,5 @@
-# Kibana 보안 설정
-elasticsearchHosts: "https://loventure-elk-master:9200"
+# Kibana 간단 설정 (7.x 버전)
+elasticsearchHosts: "http://loventure-elk-master:9200"
 
 # 리소스 설정
 resources:
@@ -13,27 +13,28 @@ resources:
 # 복제본 수
 replicas: 1
 
-# Kibana 설정
+# Kibana 설정 (7.x 버전 - HTTP 모드)
 kibanaConfig:
   kibana.yml: |
     server.name: kibana
     server.host: "0.0.0.0"
     server.port: 5601
-    elasticsearch.ssl.verificationMode: none
+    elasticsearch.hosts: ["http://loventure-elk-master:9200"]
+    elasticsearch.requestTimeout: 30000
+    elasticsearch.shardTimeout: 30000
+    elasticsearch.pingTimeout: 30000
 
-# 보안 설정 활성화
+# 보안 설정 완전 비활성화
 secret:
-  enabled: true
+  enabled: false
 
 tls:
-  enabled: true
+  enabled: false
 
-# Secret Mount (Elasticsearch 인증서)
-secretMounts:
-  - name: loventure-elk-master-certs
-    secretName: loventure-elk-master-certs
-    path: /usr/share/kibana/certs/loventure-elk-master-certs
-    defaultMode: 0755
+# Elasticsearch 보안 비활성화
+elasticsearch:
+  security:
+    enabled: false
 
 # 서비스 설정
 service:
@@ -58,12 +59,7 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 1000
 
-# 환경 변수
+# 환경 변수 (7.x 버전)
 extraEnvs:
   - name: "NODE_OPTIONS"
     value: "--max-old-space-size=1024"
-  - name: "ELASTICSEARCH_SERVICEACCOUNTTOKEN"
-    valueFrom:
-      secretKeyRef:
-        name: "kibana-kibana-es-token"
-        key: "token"

@@ -15,8 +15,8 @@ NC='\033[0m' # No Color
 
 # 환경 설정
 ENVIRONMENT=${1:-dev}
-NAMESPACE="loventure-app"
-CHART_VERSION="8.0.0"
+NAMESPACE="monitoring"
+CHART_VERSION="7.17.3"
 
 # 로그 함수
 log_info() {
@@ -171,12 +171,12 @@ show_access_info() {
     
     echo ""
     echo "=== Elasticsearch 접근 ==="
-    echo "내부 URL: http://elasticsearch-master.$NAMESPACE.svc.cluster.local:9200"
-    echo "포트 포워딩: kubectl port-forward svc/elasticsearch-master 9200:9200 -n $NAMESPACE"
+    echo "내부 URL: http://pitterpetter-elk-master.$NAMESPACE.svc.cluster.local:9200"
+    echo "포트 포워딩: kubectl port-forward svc/pitterpetter-elk-master 9200:9200 -n $NAMESPACE"
     
     echo ""
     echo "=== 로그 확인 ==="
-    echo "Elasticsearch: kubectl logs -f deployment/elasticsearch-master -n $NAMESPACE"
+    echo "Elasticsearch: kubectl logs -f deployment/pitterpetter-elk-master -n $NAMESPACE"
     echo "Kibana: kubectl logs -f deployment/kibana-kibana -n $NAMESPACE"
     echo "Logstash: kubectl logs -f deployment/logstash-logstash -n $NAMESPACE"
     echo "Filebeat: kubectl logs -f daemonset/filebeat -n $NAMESPACE"

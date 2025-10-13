@@ -10,11 +10,11 @@ project_id       = "pitterpetter"
 namespace   = "monitoring"
 environment = "development"
 
-# ELK Stack 버전 (안정성 보장 버전)
-elasticsearch_version = "8.5.1"
-kibana_version       = "8.5.1"
-logstash_version     = "8.5.1"
-filebeat_version     = "8.5.1"
+# ELK Stack 버전 (7.x 버전으로 다운그레이드 - 보안 비활성화로 간단한 설정)
+elasticsearch_version = "7.17.3"
+kibana_version       = "7.17.3"
+logstash_version     = "7.17.3"
+filebeat_version     = "7.17.3"
 
 # 도메인 설정
 kibana_domain       = "kibana.loventure.us"

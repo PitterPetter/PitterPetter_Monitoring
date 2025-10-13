@@ -85,8 +85,7 @@ PitterPetter_Monitoring/
 │   ├── elasticsearch/
 │   │   └── values.yaml
 │   ├── kibana/
-│   │   ├── values.yaml
-│   │   └── kibana-init-configmap.yaml
+│   │   └── values.yaml
 │   ├── logstash/
 │   │   └── values.yaml
 │   ├── filebeat/
@@ -135,13 +134,13 @@ PitterPetter_Monitoring/
 
 ### 네임스페이스
 - **모니터링 네임스페이스**: `monitoring`
-- **서비스 이름**: `loventure-elk-master`, `kibana-kibana`, `logstash-logstash`
+- **서비스 이름**: `pitterpetter-elk-master`, `kibana-kibana`, `logstash-logstash`
 
 ## 📊 모니터링
 
 ### 접속 정보
 - **Kibana**: `kubectl port-forward -n monitoring svc/kibana-kibana 5601:5601`
-- **Elasticsearch**: `kubectl port-forward -n monitoring svc/loventure-elk-master 9200:9200`
+- **Elasticsearch**: `kubectl port-forward -n monitoring svc/pitterpetter-elk-master 9200:9200`
 
 ### 로그 인덱스
 - **인덱스 패턴**: `loventure-logs-*`
@@ -155,7 +154,7 @@ PitterPetter_Monitoring/
 kubectl get pods -n monitoring
 
 # 각 컴포넌트 로그 확인
-kubectl logs -n monitoring loventure-elk-master-0
+kubectl logs -n monitoring pitterpetter-elk-master-0
 kubectl logs -n monitoring logstash-logstash-0
 kubectl logs -n monitoring kibana-kibana-6d64c95589-fmqt7
 kubectl logs -n monitoring filebeat-filebeat-277vr
@@ -164,7 +163,7 @@ kubectl logs -n monitoring filebeat-filebeat-277vr
 ### 업그레이드
 ```bash
 # Helm을 통한 업그레이드
-helm upgrade loventure-elk-master elastic/elasticsearch -n monitoring -f helm-charts/elasticsearch/values.yaml
+helm upgrade pitterpetter-elk-master elastic/elasticsearch -n monitoring -f helm-charts/elasticsearch/values.yaml
 helm upgrade kibana elastic/kibana -n monitoring -f helm-charts/kibana/values.yaml
 helm upgrade logstash elastic/logstash -n monitoring -f helm-charts/logstash/values.yaml
 helm upgrade filebeat elastic/filebeat -n monitoring -f helm-charts/filebeat/values.yaml
@@ -181,7 +180,7 @@ terraform apply -var-file="monitoring.tfvars"
 helm uninstall filebeat -n monitoring
 helm uninstall logstash -n monitoring
 helm uninstall kibana -n monitoring
-helm uninstall loventure-elk-master -n monitoring
+helm uninstall pitterpetter-elk-master -n monitoring
 
 # Terraform을 통한 삭제
 cd terraform
@@ -210,7 +209,7 @@ kubectl get configmap logstash-templates -n monitoring
 ### 로그 확인 명령어
 ```bash
 # Elasticsearch 클러스터 상태
-kubectl exec -n monitoring loventure-elk-master-0 -- curl -k -u "elastic:$(kubectl get secret loventure-elk-master -n monitoring -o jsonpath='{.data.elastic}' | base64 -d)" "https://127.0.0.1:9200/_cluster/health"
+kubectl exec -n monitoring pitterpetter-elk-master-0 -- curl "http://127.0.0.1:9200/_cluster/health"
 
 # Logstash 파이프라인 상태
 kubectl exec -n monitoring logstash-logstash-0 -- curl "http://127.0.0.1:9600/_node/stats/pipelines"

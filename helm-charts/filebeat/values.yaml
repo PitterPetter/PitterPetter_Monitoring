@@ -34,7 +34,7 @@ filebeatConfig:
             fields:
               cluster: "loventure-dev-cluster"
               environment: "development"
-              namespace: "loventure-app"
+              namespace: "monitoring"
 
     output.logstash:
       hosts: ["logstash-logstash:5044"]

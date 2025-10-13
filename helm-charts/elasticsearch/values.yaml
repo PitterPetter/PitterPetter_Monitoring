@@ -32,7 +32,7 @@ extraEnvs:
   - name: "ES_JAVA_OPTS"
     value: "-Xms2g -Xmx2g"
 
-# 보안 설정 (프로덕션 환경용)
+# 보안 설정 (7.x 버전 - 보안 비활성화로 간단한 설정)
 esConfig:
   elasticsearch.yml: |
     cluster.name: loventure-elk
@@ -40,11 +40,7 @@ esConfig:
     network.host: 0.0.0.0
     discovery.seed_hosts: loventure-elk-master-headless
     cluster.initial_master_nodes: loventure-elk-master-0
-    xpack.security.enabled: true
-    xpack.security.transport.ssl.enabled: true
-    xpack.security.http.ssl.enabled: true
-    xpack.security.transport.ssl.verification_mode: certificate
-    xpack.security.http.ssl.verification_mode: certificate
+    xpack.security.enabled: false
     xpack.monitoring.collection.enabled: true
     http.cors.enabled: true
     http.cors.allow-origin: "https://loventure.us, https://api.loventure.us, https://kibana.loventure.us"
@@ -65,46 +61,7 @@ service:
     http: 9200
     transport: 9300
 
-# 헬스체크 설정 (단일 노드 클러스터용)
-readinessProbe:
-  exec:
-    command:
-    - bash
-    - -c
-    - |
-      # Exit if ELASTIC_PASSWORD is unset
-      if [ -z "${ELASTIC_PASSWORD}" ]; then
-        echo "ELASTIC_PASSWORD variable is missing, exiting"
-        exit 1
-      fi
-      
-      # Check if the node is responding
-      curl -k -u "elastic:${ELASTIC_PASSWORD}" "https://127.0.0.1:9200/" > /dev/null 2>&1
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  successThreshold: 1
-  failureThreshold: 3
-
-livenessProbe:
-  exec:
-    command:
-    - bash
-    - -c
-    - |
-      # Exit if ELASTIC_PASSWORD is unset
-      if [ -z "${ELASTIC_PASSWORD}" ]; then
-        echo "ELASTIC_PASSWORD variable is missing, exiting"
-        exit 1
-      fi
-      
-      # Check if the node is responding
-      curl -k -u "elastic:${ELASTIC_PASSWORD}" "https://127.0.0.1:9200/" > /dev/null 2>&1
-  initialDelaySeconds: 60
-  periodSeconds: 10
-  timeoutSeconds: 5
-  successThreshold: 1
-  failureThreshold: 3
+# 헬스체크 설정 (Helm 차트 기본 설정 사용)
 
 # Pod 안전성 설정
 podSecurityContext:
@@ -129,9 +86,9 @@ tolerations: []
 # 어피니티
 affinity: {}
 
-# 보안 설정 활성화 (Helm 차트 레벨)
+# 보안 설정 비활성화 (7.x 버전)
 secret:
-  enabled: true
+  enabled: false
 
 tls:
-  enabled: true
+  enabled: false
