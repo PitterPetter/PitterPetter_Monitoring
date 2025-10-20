@@ -24,7 +24,7 @@ filebeatConfig:
         - /var/log/containers/*loventure-prod-*-*_loventure-app_*.log
       processors:
         - add_kubernetes_metadata:
-            host: ${NODE_NAME}
+            host: $${NODE_NAME}
             matchers:
             - logs_path:
                 logs_path: "/var/log/containers/"
@@ -42,9 +42,9 @@ filebeatConfig:
 
     logging.level: info
 
-# 노드 선택자
+# 노드 선택자 - 환경별로 변경됨
 nodeSelector:
-  cloud.google.com/gke-nodepool: pitterpetter-nodes
+  cloud.google.com/gke-nodepool: ${NODE_POOL_NAME}
 
 # Pod 안전성 설정 (Filebeat는 root 권한 필요)
 podSecurityContext:

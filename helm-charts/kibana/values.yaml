@@ -42,9 +42,9 @@ service:
   ports:
     http: 5601
 
-# 노드 선택자
+# 노드 선택자 - 환경별로 변경됨
 nodeSelector:
-  cloud.google.com/gke-nodepool: pitterpetter-nodes
+  cloud.google.com/gke-nodepool: ${NODE_POOL_NAME}
 
 # Pod 안전성 설정
 podSecurityContext:

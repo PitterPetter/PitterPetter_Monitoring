@@ -11,7 +11,9 @@ resource "helm_release" "kibana" {
   timeout    = 300  # 5분
 
   values = [
-    file("${path.module}/../helm-charts/kibana/values.yaml")
+    templatefile("${path.module}/../helm-charts/kibana/values.yaml", {
+      NODE_POOL_NAME = var.node_pool_name
+    })
   ]
 
   # 보안 설정 완전 비활성화
@@ -93,7 +95,7 @@ resource "helm_release" "kibana" {
   # 노드 선택자
   set {
     name  = "nodeSelector.cloud\\.google\\.com/gke-nodepool"
-    value = "pitterpetter-nodes"
+    value = var.node_pool_name
   }
 
   depends_on = [helm_release.elasticsearch]

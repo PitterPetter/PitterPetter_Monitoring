@@ -6,11 +6,17 @@
 
 ```
 terraform/
-├── main.tf              # 메인 Terraform 설정
+├── 01-namespace.tf      # 네임스페이스 생성
+├── 02-elasticsearch.tf  # Elasticsearch 배포
+├── 03-logstash.tf       # Logstash 배포
+├── 04-kibana.tf         # Kibana 배포
+├── 05-filebeat.tf       # Filebeat 배포
+├── 06-ingress.tf        # Ingress 설정
 ├── variables.tf         # 변수 정의
 ├── outputs.tf           # 출력 값 정의
 ├── versions.tf          # Provider 버전 정의
-├── monitoring.tfvars    # 실제 배포용 변수 파일
+├── dev.tfvars          # 개발환경 변수 파일
+├── prod.tfvars         # 운영환경 변수 파일
 └── README.md           # 이 파일
 ```
 
@@ -19,77 +25,66 @@ terraform/
 ### 1. 사전 준비
 
 ```bash
-# GKE 클러스터에 연결
+# GKE 클러스터에 연결 (개발환경)
 gcloud container clusters get-credentials pitterpetter-dev-cluster --zone=asia-northeast3-b --project=pitterpetter
+
+# GKE 클러스터에 연결 (운영환경)
+gcloud container clusters get-credentials pitterpetter-prod-cluster --zone=asia-northeast3-b --project=pitterpetter-2
 
 # Helm repository 추가
 helm repo add elastic https://helm.elastic.co
 helm repo update
 ```
 
-### 2. Terraform 초기화
+### 2. 자동 배포 (권장)
+
+```bash
+# 개발환경 배포
+./scripts/deploy.sh dev
+
+# 운영환경 배포
+./scripts/deploy.sh prod
+```
+
+### 3. 수동 배포
 
 ```bash
 cd terraform
+
+# Terraform 초기화
 terraform init
+
+# 개발환경 배포
+terraform plan -var-file="dev.tfvars"
+terraform apply -var-file="dev.tfvars"
+
+# 운영환경 배포
+terraform plan -var-file="prod.tfvars"
+terraform apply -var-file="prod.tfvars"
 ```
 
-### 3. 배포 계획 확인
+## 🔧 환경별 설정
 
-```bash
-terraform plan -var-file="monitoring.tfvars"
-```
+### 개발환경 (dev.tfvars)
+- 프로젝트: `pitterpetter`
+- 클러스터: `pitterpetter-dev-cluster`
+- 도메인: `kibana.loventure.us`
+- 리소스: 작은 크기
 
-### 4. 배포 실행
-
-```bash
-terraform apply -var-file="monitoring.tfvars"
-```
-
-### 5. 배포 확인
-
-```bash
-# Pod 상태 확인
-kubectl get pods -n monitoring
-
-# 서비스 확인
-kubectl get svc -n monitoring
-
-# Ingress 확인
-kubectl get ingress -n monitoring
-```
-
-## 🔧 설정 수정
-
-### 변수 수정
-
-`monitoring.tfvars` 파일을 수정하여 설정을 변경할 수 있습니다:
-
-```hcl
-# 리소스 설정 변경
-elasticsearch_resources = {
-  requests = {
-    cpu    = "2000m"  # CPU 증가
-    memory = "4Gi"    # 메모리 증가
-  }
-  limits = {
-    cpu    = "4000m"
-    memory = "8Gi"
-  }
-}
-
-# 스토리지 크기 변경
-elasticsearch_storage_size = "50Gi"
-```
-
-### Helm Chart Values 수정
-
-`../helm-charts/` 디렉토리의 values.yaml 파일을 수정하여 더 세부적인 설정을 변경할 수 있습니다.
+### 운영환경 (prod.tfvars)
+- 프로젝트: `pitterpetter-2`
+- 클러스터: `pitterpetter-prod-cluster`
+- 도메인: `kibana-prod.loventure.us`
+- 리소스: 큰 크기
 
 ## 🗑️ 삭제
 
 ```bash
-terraform destroy -var-file="monitoring.tfvars"
+# 개발환경 삭제
+terraform destroy -var-file="dev.tfvars"
+
+# 운영환경 삭제
+terraform destroy -var-file="prod.tfvars"
 ```
 
 ## 📊 모니터링
@@ -98,7 +93,7 @@ terraform destroy -var-file="monitoring.tfvars"
 
 ```bash
 # Elasticsearch 로그
-kubectl logs -f deployment/elasticsearch-master -n monitoring
+kubectl logs -f statefulset/loventure-elk-master -n monitoring
 
 # Kibana 로그
 kubectl logs -f deployment/kibana-kibana -n monitoring
@@ -114,10 +109,11 @@ kubectl logs -f daemonset/filebeat -n monitoring
 
 ```bash
 # Elasticsearch 내부 접근
-kubectl port-forward svc/elasticsearch-master 9200:9200 -n monitoring
+kubectl port-forward svc/loventure-elk-master 9200:9200 -n monitoring
 
 # Kibana 외부 접근
-# https://kibana.loventure.us
+# 개발환경: https://kibana.loventure.us
+# 운영환경: https://kibana-prod.loventure.us
 ```
 
 ## 🔍 문제 해결
@@ -152,6 +148,6 @@ kubectl describe pod <pod-name> -n monitoring
 
 ## 📝 참고사항
 
-- 이 설정은 개발 환경용으로 최적화되어 있습니다.
-- 프로덕션 환경에서는 보안 설정을 강화해야 합니다.
-- 리소스 설정은 클러스터 크기에 따라 조정이 필요할 수 있습니다.
+- 환경별로 다른 설정 파일을 사용합니다.
+- Helm Charts는 `templatefile()` 함수로 동적 값 주입됩니다.
+- 리소스 설정은 환경에 따라 자동으로 조정됩니다.
