@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # PitterPetter ELK Stack 정리 스크립트
-# 사용법: ./cleanup.sh [--force]
+# 사용법: ./cleanup.sh [environment] [--force]
+# 환경: dev, prod (기본값: dev)
 
 set -e
 
@@ -12,9 +13,21 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 설정
-NAMESPACE="loventure-app"
+# 환경 설정
+ENVIRONMENT=${1:-dev}
+NAMESPACE="monitoring"
 FORCE=false
+
+# 환경별 설정
+if [ "$ENVIRONMENT" = "prod" ]; then
+    TFVARS_FILE="prod.tfvars"
+    PROJECT_ID="pitterpetter-2"
+    CLUSTER_NAME="pitterpetter-prod-cluster"
+else
+    TFVARS_FILE="dev.tfvars"
+    PROJECT_ID="pitterpetter"
+    CLUSTER_NAME="pitterpetter-dev-cluster"
+fi
 
 # 로그 함수
 log_info() {
@@ -35,14 +48,18 @@ log_error() {
 
 # 사용법 출력
 show_usage() {
-    echo "사용법: $0 [--force]"
+    echo "사용법: $0 [environment] [--force]"
+    echo ""
+    echo "환경:"
+    echo "  dev       개발환경 (기본값)"
+    echo "  prod      운영환경"
     echo ""
     echo "옵션:"
     echo "  --force    확인 없이 강제 삭제"
     echo ""
     echo "예시:"
-    echo "  $0              # 확인 후 삭제"
-    echo "  $0 --force      # 확인 없이 삭제"
+    echo "  $0 dev              # 개발환경 확인 후 삭제"
+    echo "  $0 prod --force     # 운영환경 확인 없이 삭제"
 }
 
 # 확인 함수
@@ -61,37 +78,19 @@ confirm() {
     fi
 }
 
-# Helm 릴리스 삭제
-delete_helm_releases() {
-    log_info "Helm 릴리스 삭제 중..."
+# Terraform을 통한 삭제
+delete_with_terraform() {
+    log_info "Terraform으로 ELK Stack 삭제 중..."
     
-    # Filebeat 삭제
-    if helm list -n $NAMESPACE | grep -q filebeat; then
-        log_info "Filebeat 삭제 중..."
-        helm uninstall filebeat -n $NAMESPACE
-        log_success "Filebeat 삭제 완료"
-    fi
+    cd terraform
     
-    # Logstash 삭제
-    if helm list -n $NAMESPACE | grep -q logstash; then
-        log_info "Logstash 삭제 중..."
-        helm uninstall logstash -n $NAMESPACE
-        log_success "Logstash 삭제 완료"
-    fi
+    # Terraform 삭제
+    log_info "Terraform 삭제 실행 중..."
+    terraform destroy -var-file="$TFVARS_FILE" -auto-approve
     
-    # Kibana 삭제
-    if helm list -n $NAMESPACE | grep -q kibana; then
-        log_info "Kibana 삭제 중..."
-        helm uninstall kibana -n $NAMESPACE
-        log_success "Kibana 삭제 완료"
-    fi
+    cd ..
     
-    # Elasticsearch 삭제
-    if helm list -n $NAMESPACE | grep -q elasticsearch; then
-        log_info "Elasticsearch 삭제 중..."
-        helm uninstall elasticsearch -n $NAMESPACE
-        log_success "Elasticsearch 삭제 완료"
-    fi
+    log_success "Terraform 삭제 완료"
 }
 
 # PVC 삭제
@@ -148,6 +147,10 @@ main() {
                 show_usage
                 exit 0
                 ;;
+            dev|prod)
+                ENVIRONMENT=$1
+                shift
+                ;;
             *)
                 log_error "알 수 없는 옵션: $1"
                 show_usage
@@ -156,7 +159,8 @@ main() {
         esac
     done
     
-    log_info "PitterPetter ELK Stack 정리 시작"
+    log_info "PitterPetter ELK Stack 정리 시작 (환경: $ENVIRONMENT)"
+    log_info "사용할 설정: $TFVARS_FILE"
     
     # 네임스페이스 존재 확인
     if ! kubectl get namespace $NAMESPACE &> /dev/null; then
@@ -166,9 +170,7 @@ main() {
     
     confirm
     
-    delete_helm_releases
-    delete_pvcs
-    delete_namespace
+    delete_with_terraform
     
     check_cleanup_status
     

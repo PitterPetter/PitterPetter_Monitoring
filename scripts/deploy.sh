@@ -2,7 +2,7 @@
 
 # PitterPetter ELK Stack 배포 스크립트
 # 사용법: ./deploy.sh [environment]
-# 환경: dev, staging, prod (기본값: dev)
+# 환경: dev, prod (기본값: dev)
 
 set -e
 
@@ -15,8 +15,23 @@ NC='\033[0m' # No Color
 
 # 환경 설정
 ENVIRONMENT=${1:-dev}
-NAMESPACE="loventure-app"
-CHART_VERSION="8.0.0"
+NAMESPACE="monitoring"
+CHART_VERSION="7.17.3"
+
+# 환경별 설정
+if [ "$ENVIRONMENT" = "prod" ]; then
+    TFVARS_FILE="prod.tfvars"
+    KIBANA_DOMAIN="kibana-prod.loventure.us"
+    PROJECT_ID="pitterpetter-2"
+    CLUSTER_NAME="pitterpetter-prod-cluster"
+    NODE_POOL_NAME="pitterpetter-pro-nodes"
+else
+    TFVARS_FILE="dev.tfvars"
+    KIBANA_DOMAIN="kibana.loventure.us"
+    PROJECT_ID="pitterpetter"
+    CLUSTER_NAME="pitterpetter-dev-cluster"
+    NODE_POOL_NAME="pitterpetter-nodes"
+fi
 
 # 로그 함수
 log_info() {
@@ -51,9 +66,21 @@ check_prerequisites() {
         exit 1
     fi
     
+    # terraform 확인
+    if ! command -v terraform &> /dev/null; then
+        log_error "terraform이 설치되지 않았습니다."
+        exit 1
+    fi
+    
     # Kubernetes 클러스터 연결 확인
     if ! kubectl cluster-info &> /dev/null; then
         log_error "Kubernetes 클러스터에 연결할 수 없습니다."
+        exit 1
+    fi
+    
+    # tfvars 파일 확인
+    if [ ! -f "terraform/$TFVARS_FILE" ]; then
+        log_error "Terraform 변수 파일을 찾을 수 없습니다: terraform/$TFVARS_FILE"
         exit 1
     fi
     
@@ -83,60 +110,27 @@ check_namespace() {
     fi
 }
 
-# Elasticsearch 배포
-deploy_elasticsearch() {
-    log_info "Elasticsearch 배포 중..."
+# Terraform 배포
+deploy_with_terraform() {
+    log_info "Terraform으로 ELK Stack 배포 중..."
     
-    helm upgrade --install elasticsearch elastic/elasticsearch \
-        --namespace $NAMESPACE \
-        --version $CHART_VERSION \
-        --values helm-charts/elasticsearch/values.yaml \
-        --wait \
-        --timeout=10m
+    cd terraform
     
-    log_success "Elasticsearch 배포 완료"
-}
-
-# Kibana 배포
-deploy_kibana() {
-    log_info "Kibana 배포 중..."
+    # Terraform 초기화
+    log_info "Terraform 초기화 중..."
+    terraform init
     
-    helm upgrade --install kibana elastic/kibana \
-        --namespace $NAMESPACE \
-        --version $CHART_VERSION \
-        --values helm-charts/kibana/values.yaml \
-        --wait \
-        --timeout=10m
+    # Terraform 계획
+    log_info "Terraform 계획 생성 중..."
+    terraform plan -var-file="$TFVARS_FILE"
     
-    log_success "Kibana 배포 완료"
-}
-
-# Logstash 배포
-deploy_logstash() {
-    log_info "Logstash 배포 중..."
+    # Terraform 적용
+    log_info "Terraform 적용 중..."
+    terraform apply -var-file="$TFVARS_FILE" -auto-approve
     
-    helm upgrade --install logstash elastic/logstash \
-        --namespace $NAMESPACE \
-        --version $CHART_VERSION \
-        --values helm-charts/logstash/values.yaml \
-        --wait \
-        --timeout=10m
+    cd ..
     
-    log_success "Logstash 배포 완료"
-}
-
-# Filebeat 배포
-deploy_filebeat() {
-    log_info "Filebeat 배포 중..."
-    
-    helm upgrade --install filebeat elastic/filebeat \
-        --namespace $NAMESPACE \
-        --version $CHART_VERSION \
-        --values helm-charts/filebeat/values.yaml \
-        --wait \
-        --timeout=10m
-    
-    log_success "Filebeat 배포 완료"
+    log_success "Terraform 배포 완료"
 }
 
 # 배포 상태 확인
@@ -166,17 +160,17 @@ show_access_info() {
     
     echo ""
     echo "=== Kibana 접근 ==="
-    echo "URL: https://kibana.loventure.us"
+    echo "URL: https://$KIBANA_DOMAIN"
     echo "대기 시간: 2-3분 (초기 설정 완료 후)"
     
     echo ""
     echo "=== Elasticsearch 접근 ==="
-    echo "내부 URL: http://elasticsearch-master.$NAMESPACE.svc.cluster.local:9200"
-    echo "포트 포워딩: kubectl port-forward svc/elasticsearch-master 9200:9200 -n $NAMESPACE"
+    echo "내부 URL: http://loventure-elk-master.$NAMESPACE.svc.cluster.local:9200"
+    echo "포트 포워딩: kubectl port-forward svc/loventure-elk-master 9200:9200 -n $NAMESPACE"
     
     echo ""
     echo "=== 로그 확인 ==="
-    echo "Elasticsearch: kubectl logs -f deployment/elasticsearch-master -n $NAMESPACE"
+    echo "Elasticsearch: kubectl logs -f statefulset/loventure-elk-master -n $NAMESPACE"
     echo "Kibana: kubectl logs -f deployment/kibana-kibana -n $NAMESPACE"
     echo "Logstash: kubectl logs -f deployment/logstash-logstash -n $NAMESPACE"
     echo "Filebeat: kubectl logs -f daemonset/filebeat -n $NAMESPACE"
@@ -185,24 +179,20 @@ show_access_info() {
 # 메인 실행 함수
 main() {
     log_info "PitterPetter ELK Stack 배포 시작 (환경: $ENVIRONMENT)"
+    log_info "사용할 설정: $TFVARS_FILE"
     
     check_prerequisites
     add_helm_repos
     check_namespace
     
-    # 순차 배포 (의존성 고려)
-    deploy_elasticsearch
-    sleep 30  # Elasticsearch 초기화 대기
-    
-    deploy_kibana
-    deploy_logstash
-    deploy_filebeat
+    # Terraform으로 배포
+    deploy_with_terraform
     
     check_deployment_status
     show_access_info
     
     log_success "ELK Stack 배포 완료!"
-    log_info "Kibana에 접속하여 대시보드를 확인하세요: https://kibana.loventure.us"
+    log_info "Kibana에 접속하여 대시보드를 확인하세요: https://$KIBANA_DOMAIN"
 }
 
 # 스크립트 실행

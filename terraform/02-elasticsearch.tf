@@ -10,7 +10,9 @@ resource "helm_release" "elasticsearch" {
   namespace  = kubernetes_namespace.monitoring.metadata[0].name
 
   values = [
-    file("${path.module}/../helm-charts/elasticsearch/values.yaml")
+    templatefile("${path.module}/../helm-charts/elasticsearch/values.yaml", {
+      NODE_POOL_NAME = var.node_pool_name
+    })
   ]
 
   # values.yaml 파일을 사용하므로 set 구문 제거

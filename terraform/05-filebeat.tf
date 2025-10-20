@@ -11,7 +11,9 @@ resource "helm_release" "filebeat" {
   timeout    = 300  # 5분
 
   values = [
-    file("${path.module}/../helm-charts/filebeat/values.yaml")
+    templatefile("${path.module}/../helm-charts/filebeat/values.yaml", {
+      NODE_POOL_NAME = var.node_pool_name
+    })
   ]
 
   depends_on = [helm_release.logstash]

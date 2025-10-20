@@ -2,11 +2,11 @@
   "version": "8.0.0",
   "objects": [
     {
-      "id": "pitterpetter-logs-pattern",
+      "id": "loventure-logs-pattern",
       "type": "index-pattern",
       "version": "WzEsMV0=",
       "attributes": {
-        "title": "pitterpetter-logs-*",
+        "title": "loventure-logs-*",
         "timeFieldName": "@timestamp",
         "fields": "[]"
       }

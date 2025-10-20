@@ -1,8 +1,8 @@
 # Logstash Helm Chart Values for PitterPetter
 # https://github.com/elastic/helm-charts/tree/main/logstash
 
-# Elasticsearch 연결 설정
-elasticsearchHosts: "http://elasticsearch-master:9200"
+# Elasticsearch 연결 설정 (7.x 버전 - HTTP 모드)
+elasticsearchHosts: "http://loventure-elk-master:9200"
 
 # 리소스 설정
 resources:
@@ -16,12 +16,13 @@ resources:
 # 복제본 수
 replicas: 1
 
-# Logstash 설정
+# Logstash 설정 (7.x 버전 - HTTP 모드)
 logstashConfig:
   logstash.yml: |
     http.host: "0.0.0.0"
+    http.port: 9600
     xpack.monitoring.enabled: true
-    xpack.monitoring.elasticsearch.hosts: ["http://elasticsearch-master:9200"]
+    xpack.monitoring.elasticsearch.hosts: ["http://loventure-elk-master:9200"]
     pipeline.workers: 2
     pipeline.batch.size: 1000
     pipeline.batch.delay: 50
@@ -103,31 +104,11 @@ logstashPipeline:
     
     output {
       elasticsearch {
-        hosts => ["http://elasticsearch-master:9200"]
+        hosts => ["http://loventure-elk-master:9200"]
         index => "loventure-logs-%{+YYYY.MM.dd}"
         template_name => "loventure-logs"
-        template_pattern => "loventure-logs-*"
-        template => {
-          "index_patterns" => ["loventure-logs-*"]
-          "settings" => {
-            "number_of_shards" => 1
-            "number_of_replicas" => 0
-            "index.refresh_interval" => "5s"
-          }
-          "mappings" => {
-            "properties" => {
-              "@timestamp" => { "type" => "date" }
-              "level" => { "type" => "keyword" }
-              "service" => { "type" => "keyword" }
-              "service_type" => { "type" => "keyword" }
-              "log_message" => { "type" => "text" }
-              "thread" => { "type" => "keyword" }
-              "logger" => { "type" => "keyword" }
-              "cluster" => { "type" => "keyword" }
-              "environment" => { "type" => "keyword" }
-            }
-          }
-        }
+        template_overwrite => true
+        template => "/usr/share/logstash/templates/loventure-logs-template.json"
       }
     }
 
@@ -135,23 +116,33 @@ logstashPipeline:
 service:
   type: ClusterIP
   ports:
-    beats: 5044
-    http: 9600
+    - name: beats
+      port: 5044
+      targetPort: 5044
+      protocol: TCP
+    - name: http
+      port: 9600
+      targetPort: 9600
+      protocol: TCP
 
 # 헬스체크 설정
 readinessProbe:
   httpGet:
-    path: /_node/stats
-    port: 9600
-  initialDelaySeconds: 30
-  periodSeconds: 10
-
-livenessProbe:
-  httpGet:
-    path: /_node/stats
+    path: /_node
     port: 9600
   initialDelaySeconds: 60
   periodSeconds: 10
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /_node
+    port: 9600
+  initialDelaySeconds: 120
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
 
 # Pod 안전성 설정
 podSecurityContext:
@@ -175,7 +166,82 @@ tolerations: []
 # 어피니티
 affinity: {}
 
+# 볼륨 설정
+extraVolumes:
+  - name: templates
+    configMap:
+      name: logstash-templates
+      items:
+        - key: loventure-logs-template.json
+          path: loventure-logs-template.json
+
+extraVolumeMounts:
+  - name: templates
+    mountPath: /usr/share/logstash/templates
+    readOnly: true
+
 # 환경 변수
 extraEnvs:
   - name: "LS_JAVA_OPTS"
     value: "-Xms512m -Xmx1g"
+
+# Logstash 템플릿 ConfigMap
+extraConfigMaps:
+  - name: logstash-templates
+    data:
+      loventure-logs-template.json: |
+        {
+          "index_patterns": ["loventure-logs-*"],
+          "template": {
+            "settings": {
+              "number_of_shards": 1,
+              "number_of_replicas": 0,
+              "index.refresh_interval": "5s",
+              "index.max_result_window": 10000
+            },
+            "mappings": {
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "level": {
+                  "type": "keyword"
+                },
+                "service": {
+                  "type": "keyword"
+                },
+                "service_type": {
+                  "type": "keyword"
+                },
+                "log_message": {
+                  "type": "text",
+                  "analyzer": "standard"
+                },
+                "thread": {
+                  "type": "keyword"
+                },
+                "logger": {
+                  "type": "keyword"
+                },
+                "cluster": {
+                  "type": "keyword"
+                },
+                "environment": {
+                  "type": "keyword"
+                },
+                "namespace": {
+                  "type": "keyword"
+                },
+                "pod_name": {
+                  "type": "keyword"
+                },
+                "container_name": {
+                  "type": "keyword"
+                },
+                "node_name": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
